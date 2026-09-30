@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Video Pages</title>
+<style>
+html, body {
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    background:black;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    overflow:hidden;
+}
+
+#page {
+    width:8in;
+    height:9in;
+    position:relative;
+    background:black;
+    overflow:hidden;
+    user-select:none;
+}
+
+#videoContainer {
+    position:absolute;
+    inset:0;
+    z-index:1;
+}
+
+video {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    background:black;
+    transition:transform 0.5s ease;
+}
+
+#overlay {
+    position:absolute;
+    inset:0;
+    background:black;
+    color:white;
+    font-size:32px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    cursor:pointer;
+    z-index:20;
+}
+
+#pageNumber {
+    position:absolute;
+    bottom:5px;
+    right:10px;
+    color:black;
+    font-size:28px;
+    opacity:0.8;
+    z-index:25;
+    pointer-events:none;
+}
+
+/* Play Bar */
+#playBar {
+    position:absolute;
+    bottom:56px;
+    left:18px;
+    width:calc(100% - 90px);
+    z-index:30;
+    appearance:none;
+    height:4px;
+    border-radius:3px;
+    background:#444;
+    cursor:pointer;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.3s ease;
+}
+
+#playBar::-webkit-slider-runnable-track {
+    height:4px;
+    background:#444;
+    border-radius:3px;
+}
+
+#playBar::-webkit-slider-thumb {
+    appearance:none;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    background:white;
+    margin-top:-6px;
+}
+
+/* Heart Button */
+#heartBtn {
+    position:absolute;
+    right:18px;
+    bottom:56px;
+    font-size:42px;
+    cursor:pointer;
+    z-index:35;
+    user-select:none;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.3s ease;
+}
+
+.heart-pulse {
+    animation:heartPulse 0.4s ease-in-out;
+}
+
+@keyframes heartPulse {
+    0% { transform:scale(1); }
+    50% { transform:scale(1.35); }
+    100% { transform:scale(1); }
+}
+</style>
+</head>
+<body>
+<div id="page">
+
+    <div id="videoContainer">
+        <video id="video" muted preload="auto" playsinline></video>
+    </div>
+
+    <div id="overlay">Click to Start</div>
+    <div id="pageNumber">1 / 14</div>
+
+    <input type="range" id="playBar" min="0" max="100" value="0">
+    <div id="heartBtn">❤️</div>
+
+</div>
+
+<script>
+const video = document.getElementById("video");
+const overlay = document.getElementById("overlay");
+const page = document.getElementById("page");
+const pageNumber = document.getElementById("pageNumber");
+const playBar = document.getElementById("playBar");
+const heartBtn = document.getElementById("heartBtn");
+
+/*
+   SEVEN-VIDEO PAGE SETUP
+   ----------------------
+   This keeps the same 14 page sections from your original single video,
+   with 2 page sections assigned to each MP4.
+
+   Expected files:
+   video1.mp4 = original time 0 onward
+   video2.mp4 = starts at original time 33
+   video3.mp4 = starts at original time 63
+   video4.mp4 = starts at original time 120
+   video5.mp4 = starts at original time 189
+   video6.mp4 = starts at original time 260
+   video7.mp4 = starts at original time 394
+
+   Because each MP4 starts at 0, the times below are rebased for each file.
+*/
+const pages = [
+    // VIDEO 1 - original pages 1-2
+    { src:"video1.mp4", start:0,  end:9  },
+    { src:"video1.mp4", start:13,  end:29 },
+    { src:"video1.mp4", start:32,  end:66  },
+    { src:"video1.mp4", start:73,  end:106 },
+    { src:"video1.mp4", start:140,  end:156 },
+    { src:"video1.mp4", start:156,  end:212 },
+    { src:"video1.mp4", start:212,  end:289 },
+    { src:"video1.mp4", start:289,  end:323 },
+
+    // VIDEO 2 - original pages 3-4, starting at original time 33
+    { src:"video2.mp4", start:0,  end:46 },
+    { src:"video2.mp4", start:48, end:93 },
+     { src:"video2.mp4", start:96,  end:195 },
+    { src:"video2.mp4", start:198, end:324 },
+
+    // VIDEO 3 - original pages 5-6, starting at original time 63
+    { src:"video3.mp4", start:0,  end:98 },
+    { src:"video3.mp4", start:98, end:130 },
+      { src:"video3.mp4", start:148,  end:190 },
+    { src:"video3.mp4", start:196, end:319 },
+
+    // VIDEO 4 - original pages 7-8, starting at original time 120
+    { src:"video4.mp4", start:0,  end:60 },
+    { src:"video4.mp4", start:63, end:70 },
+    { src:"video4.mp4", start:75,  end:236 },
+    { src:"video4.mp4", start:310, end:331 },
+   
+    // VIDEO 5 - original pages 9-10, starting at original time 189
+    { src:"video5.mp4", start:0,  end:153 },
+
+    // VIDEO 6 - original pages 11-12, starting at original time 260
+    { src:"video6.mp4", start:6,  end:23  },
+    { src:"video6.mp4", start:23, end:129 },
+    { src:"video6.mp4", start:135,  end:193  },
+    { src:"video7.mp4", start:0,  end:17  },
+
+    // VIDEO 7 - original pages 13-14, starting at original time 394
+   
+];
+
+let currentPage = 0;
+let currentSrc = "";
+let started = false;
+let startY = null;
+let scrubbing = false;
+let loadRequest = 0;
+
+function waitForVideoReady(){
+    if(video.readyState >= 1) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+        const onReady = () => {
+            cleanup();
+            resolve();
+        };
+
+        const onError = () => {
+            cleanup();
+            reject(new Error(`Could not load ${video.src}`));
+        };
+
+        const cleanup = () => {
+            video.removeEventListener("loadedmetadata", onReady);
+            video.removeEventListener("error", onError);
+        };
+
+        video.addEventListener("loadedmetadata", onReady, { once:true });
+        video.addEventListener("error", onError, { once:true });
+    });
+}
+
+/* Load a page, switching video files when needed */
+async function loadPage(i, direction=0){
+    if(i < 0 || i >= pages.length) return;
+
+    const requestId = ++loadRequest;
+    const wasPlaying = started && !video.paused;
+    const target = pages[i];
+
+    currentPage = i;
+    pageNumber.innerText = `${currentPage + 1} / ${pages.length}`;
+    playBar.value = 0;
+
+    if(direction !== 0){
+        video.style.transform = `translateY(${direction * 100}%)`;
+        setTimeout(() => video.style.transform = "translateY(0%)", 50);
+    }
+
+    try {
+        if(currentSrc !== target.src){
+            currentSrc = target.src;
+            video.src = target.src;
+            video.load();
+            await waitForVideoReady();
+        }
+
+        if(requestId !== loadRequest) return;
+
+        video.currentTime = target.start;
+
+        if(started && (wasPlaying || video.paused)){
+            await video.play();
+        }
+    } catch(err){
+        console.error(err);
+    }
+}
+
+/* Loop current page + update play bar */
+video.addEventListener("timeupdate", () => {
+    if(!started) return;
+
+    const { start, end } = pages[currentPage];
+
+    if(video.currentTime >= end){
+        video.currentTime = start;
+        video.play().catch(err => console.error(err));
+    }
+
+    if(!scrubbing){
+        const progress = (video.currentTime - start) / (end - start);
+        playBar.value = Math.max(0, Math.min(100, progress * 100));
+    }
+});
+
+/* Click overlay to start video */
+overlay.addEventListener("click", async e => {
+    e.stopPropagation();
+    if(started) return;
+
+    started = true;
+    overlay.style.display = "none";
+
+    playBar.style.opacity = "1";
+    playBar.style.pointerEvents = "auto";
+    heartBtn.style.opacity = "1";
+    heartBtn.style.pointerEvents = "auto";
+
+    video.muted = false;
+    await loadPage(0);
+});
+
+/* Click page to pause/play */
+page.addEventListener("click", () => {
+    if(!started) return;
+    video.paused
+        ? video.play().catch(err => console.error(err))
+        : video.pause();
+});
+
+/* Play bar scrubbing */
+playBar.addEventListener("input", e => {
+    e.stopPropagation();
+    if(!started) return;
+
+    scrubbing = true;
+    const { start, end } = pages[currentPage];
+    video.currentTime = start + (playBar.value / 100) * (end - start);
+});
+
+playBar.addEventListener("change", e => {
+    e.stopPropagation();
+    scrubbing = false;
+});
+
+/* Prevent clicking the slider from also pausing the video */
+playBar.addEventListener("click", e => e.stopPropagation());
+
+/* Heart button animation */
+heartBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    heartBtn.classList.remove("heart-pulse");
+    void heartBtn.offsetWidth;
+    heartBtn.classList.add("heart-pulse");
+});
+
+/* Drag / swipe navigation */
+page.addEventListener("mousedown", e => startY = e.clientY);
+page.addEventListener("mouseup", e => {
+    if(!started || startY === null) return;
+
+    const diff = startY - e.clientY;
+    startY = null;
+
+    if(Math.abs(diff) > 60){
+        diff < 0
+            ? loadPage(currentPage + 1, -1)
+            : loadPage(currentPage - 1, 1);
+    }
+});
+
+page.addEventListener("touchstart", e => {
+    startY = e.touches[0].clientY;
+}, { passive:true });
+
+page.addEventListener("touchend", e => {
+    if(!started || startY === null) return;
+
+    const diff = startY - e.changedTouches[0].clientY;
+    startY = null;
+
+    if(Math.abs(diff) > 50){
+        diff < 0
+            ? loadPage(currentPage + 1, -1)
+            : loadPage(currentPage - 1, 1);
+    }
+});
+
+/* Mouse wheel navigation */
+page.addEventListener("wheel", e => {
+    if(!started) return;
+
+    e.deltaY < 0
+        ? loadPage(currentPage + 1, -1)
+        : loadPage(currentPage - 1, 1);
+});
+
+/* Preload the first video without starting playback */
+video.src = pages[0].src;
+currentSrc = pages[0].src;
+video.load();
+</script>
+</body>
+</html>
